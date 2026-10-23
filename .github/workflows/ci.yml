@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+# 本项目 V0.4.0 起为三平台插件（core.mjs 纯逻辑 + 零依赖 ZIP + pnpm POSIX 分支 +
+# pickers 平台分发），CI 必须在 windows/ubuntu/macos 三平台 × node [20, 22] 上跑，
+# 与真实部署环境一致（macOS 无本机硬件，以 CI 补盲区）。
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+        node-version: [20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+      - name: Validate package size gate (<5MB, R4)
+        run: node tools/check-size.mjs
+      - name: Validate package version (semver)
+        run: node tools/check-version.mjs
+      - name: Install peer dependency for tests
+        run: npm install --no-save @deepseek-ai/dsh-tools
+      - name: Smoke tests
+        run: node tools/smoke-test.mjs
+      - name: Route contract parity (issue #18 regression)
+        run: node tools/check-routes.mjs
+      - name: Standalone undo-server smoke (issues #18 #19, PR #21)
+        run: node tools/undo-server-smoke.mjs
+      - name: Home resolution regression (issue #6)
+        run: node tools/home-resolution-test.mjs
+      - name: Watcher e2e regression
+        run: node tools/e2e-watch.mjs
